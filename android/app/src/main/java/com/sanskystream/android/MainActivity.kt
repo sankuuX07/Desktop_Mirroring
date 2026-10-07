@@ -1,4 +1,4 @@
-﻿package com.sanskystream.android
+package com.sanskystream.android
 
 // ---------------------------------------------------------------------------
 // MainActivity.kt — M18: SanskyStream Android UI
@@ -51,6 +51,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etWindowsHost: EditText
     private lateinit var btnStart:     Button
     private lateinit var btnStop:      Button
+
+    // -----------------------------------------------------------------------
+    // NSD advertisement — started immediately when app opens so Windows can
+    // discover this device BEFORE the user taps Start Streaming.
+    // This is the key fix: advertisement must be independent of TCP connect.
+    // -----------------------------------------------------------------------
+    private lateinit var serviceAdvertiser: ServiceAdvertiser
 
     // -----------------------------------------------------------------------
     // State
@@ -124,9 +131,29 @@ class MainActivity : AppCompatActivity() {
         btnStart.setOnClickListener { onStartClicked() }
         btnStop.setOnClickListener  { onStopClicked()  }
 
+        serviceAdvertiser = ServiceAdvertiser(this)
+
         updateButtons(streaming = false)
         updatePermissionStatus()
         setStatus("Ready. Enter Windows PC IP and tap Start.")
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Advertise immediately so Windows discovers this device without
+        // requiring the user to start streaming first.
+        serviceAdvertiser.start()
+        Log.i(TAG, "NSD advertisement started from MainActivity.onStart()")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Stop advertising only if not streaming — StreamingService handles
+        // its own advertisement lifecycle.
+        if (!isStreaming) {
+            serviceAdvertiser.stop()
+            Log.i(TAG, "NSD advertisement stopped from MainActivity.onStop() (not streaming)")
+        }
     }
 
     override fun onResume() {

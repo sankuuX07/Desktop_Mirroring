@@ -11,12 +11,21 @@
                                 Note: captures app/game audio, NOT microphone.
                                 Android requires RECORD_AUDIO permission for
                                 AudioPlaybackCapture even though no mic is used.
+           CHANGE_WIFI_MULTICAST_STATE - Required for mDNS multicast packets
+                                (NsdManager sends/receives on 224.0.0.251:5353).
+                                Without this, mDNS advertisements may be silently
+                                dropped by the Wi-Fi driver on some devices.
+           ACCESS_NETWORK_STATE - Required to check connectivity before NSD start.
+           ACCESS_WIFI_STATE    - Required by NsdManager on some Android versions.
     ====================================================== -->
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <application
         android:allowBackup="true"

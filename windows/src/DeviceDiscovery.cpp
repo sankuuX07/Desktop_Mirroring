@@ -140,10 +140,13 @@ bool DeviceDiscovery::Start() {
     }
     m_running = true;
 
+    LOG_INFO("[DISCOVERY] Starting discovery");
+    LOG_INFO("[DISCOVERY] Querying service type: " + WstrToUtf8(SERVICE_TYPE));
+
     // Registration failure is non-fatal — browse still provides value.
     if (!StartRegistration()) {
         LOG_WARN("DeviceDiscovery: Registration unavailable "
-                 "(non-fatal — iPhone browser will still find this PC if mDNS is active).");
+                 "(non-fatal — Android browser will still find this PC if mDNS is active).");
     }
 
     const bool browsing = StartBrowse();
@@ -151,7 +154,7 @@ bool DeviceDiscovery::Start() {
         LOG_INFO("DeviceDiscovery: Started. Browsing for " +
                  WstrToUtf8(SERVICE_TYPE) + ".");
     } else {
-        LOG_WARN("DeviceDiscovery: Browse failed. "
+        LOG_WARN("[DISCOVERY] Discovery error: DnsServiceBrowse failed. "
                  "Existing manual connection still functional.");
     }
     return browsing;
@@ -454,24 +457,44 @@ void DeviceDiscovery::OnServiceResolved(const std::wstring& /*instanceName*/,
     dev.role = ParseRole(roleStr);
 
     // M18: Parse optional platform TXT key (backward-compatible — absent = Unknown).
+    // Fallback: if TXT record is absent, check the device name prefix.
+    // Android always advertises as "SanskyStream-Android <device>" so we can
+    // detect platform even when TXT records are not published.
     if (platformStr == "android") {
         dev.platform = DevicePlatform::Android;
     } else if (platformStr == "ios") {
         dev.platform = DevicePlatform::iOS;
-    } else {
+    } else if (!platformStr.empty()) {
         dev.platform = DevicePlatform::Unknown;
+    } else {
+        // TXT record absent — infer from service name prefix.
+        const auto pos = dev.displayName.find("-Android");
+        if (pos != std::string::npos) {
+            dev.platform = DevicePlatform::Android;
+        } else {
+            dev.platform = DevicePlatform::Unknown;
+        }
     }
+
+    LOG_INFO("[DISCOVERY] Service discovered: '" + dev.displayName + "'");
+    LOG_INFO("[DISCOVERY] Host: " + dev.hostName);
+    LOG_INFO("[DISCOVERY] IP: " + dev.ipAddress);
+    LOG_INFO("[DISCOVERY] Port: " + std::to_string(dev.port));
+    LOG_INFO("[DISCOVERY] Platform: " +
+        std::string(dev.platform == DevicePlatform::Android ? "Android" :
+                    dev.platform == DevicePlatform::iOS     ? "iOS"     : "Unknown"));
 
     // Reject invalid devices.
     if (!IsValidDevice(dev)) {
-        LOG_WARN("DeviceDiscovery: Resolved device '" + dev.displayName +
-                 "' rejected (port=" + std::to_string(dev.port) +
-                 " ip='" + dev.ipAddress + "').");
+        LOG_WARN("[DISCOVERY] Device '" + dev.displayName +
+                 "' rejected — port=" + std::to_string(dev.port) +
+                 " ip='" + dev.ipAddress + "' hostname='" + dev.hostName + "'");
         return;
     }
 
     // Skip our own advertisement — we're a receiver, not a sender.
     if (dev.role == DeviceRole::Receiver) {
+        LOG_INFO("[DISCOVERY] Skipping own receiver advertisement: '" + dev.displayName + "'");
         return;
     }
 
@@ -480,11 +503,9 @@ void DeviceDiscovery::OnServiceResolved(const std::wstring& /*instanceName*/,
         (dev.platform == DevicePlatform::Android) ? "Android" :
         (dev.platform == DevicePlatform::iOS)     ? "iOS"     : "unknown";
 
-    LOG_INFO("DeviceDiscovery: Found '" + dev.displayName +
-             "' role=" + roleStr +
-             " platform=" + platLabel +
-             " at " + dev.ipAddress + ":" + std::to_string(dev.port) +
-             " ver=" + std::to_string(dev.protocolVersion));
+    LOG_INFO("[DISCOVERY] Device added: '" + dev.displayName +
+             "' platform=" + platLabel +
+             " at " + dev.ipAddress + ":" + std::to_string(dev.port));
 
     UpsertDevice(std::move(dev));
 }
