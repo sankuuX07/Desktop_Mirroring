@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fstream>
 #include <string>
 #include <mutex>
 #include <iostream>
@@ -30,7 +31,9 @@ private:
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
 
-    std::mutex m_mutex;
+    std::mutex   m_mutex;
+    std::ofstream m_logFile;
+    bool          m_logFileOpened = false;   // guards the one-time open
 };
 
 } // namespace SanskyStream

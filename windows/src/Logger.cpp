@@ -1,5 +1,6 @@
 #include "Logger.h"
 #include <windows.h>
+#include <shlobj.h>   // SHGetFolderPathW, CSIDL_APPDATA
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -31,12 +32,31 @@ void Logger::Log(Level level, const std::string& message) {
     }
 
     std::string fullMessage = ss.str() + " " + levelStr + " " + message + "\n";
-    
-    // Output to console
+
+    // Output to console (effective in Debug / console subsystem builds)
     std::cout << fullMessage;
-    
+
     // Output to debugger
     OutputDebugStringA(fullMessage.c_str());
+
+    // ---------------------------------------------------------------------------
+    // Output to log file (%APPDATA%\SanskyStream\sansky.log)
+    // Open lazily on first call — the mutex is already held so this is safe.
+    // ---------------------------------------------------------------------------
+    if (!m_logFileOpened) {
+        m_logFileOpened = true;
+        wchar_t appData[MAX_PATH] = {};
+        if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, appData))) {
+            std::wstring dir = std::wstring(appData) + L"\\SanskyStream";
+            CreateDirectoryW(dir.c_str(), nullptr); // no-op if already exists
+            std::wstring logPath = dir + L"\\sansky.log";
+            m_logFile.open(logPath, std::ios::out | std::ios::app);
+        }
+    }
+    if (m_logFile.is_open()) {
+        m_logFile << fullMessage;
+        m_logFile.flush();
+    }
 }
 
 } // namespace SanskyStream

@@ -52,7 +52,10 @@ Window::Window(int width, int height, const std::wstring& title)
 {
     WNDCLASSEXW wc   = {};
     wc.cbSize        = sizeof(wc);
-    wc.style         = CS_OWNDC;
+    // CS_OWNDC removed: sharing a single owned DC between D3D11 and GDI child
+    // controls causes repaint artefacts.  Standard CS_HREDRAW|CS_VREDRAW are
+    // not needed here either because WM_SIZE drives explicit layout.
+    wc.style         = 0;
     wc.lpfnWndProc   = WindowProc;
     wc.hInstance     = m_hInstance;
     wc.hCursor       = LoadCursor(nullptr, IDC_ARROW);
@@ -71,7 +74,11 @@ Window::Window(int width, int height, const std::wstring& title)
         0,
         m_windowClass.c_str(),
         title.c_str(),
-        WS_OVERLAPPEDWINDOW,
+        // WS_CLIPCHILDREN: tells DXGI/D3D11 Present() to exclude the rectangles
+        // occupied by child windows (LISTBOX, BUTTON, EDIT, STATIC) from the
+        // D3D back-buffer blit.  Without this flag, Present() overwrites child
+        // controls every frame, making the UI appear blank.
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT, CW_USEDEFAULT,
         wr.right  - wr.left,
         wr.bottom - wr.top,
